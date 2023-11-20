@@ -27,7 +27,7 @@ services:
       - "traefik.http.routers.element-litchi.tls.certresolver=letsencrypt"
 
   synapse-kiwi:
-    image: matrixdotorg/synapse:v1.96.1
+    image: matrixdotorg/synapse:${SYNAPSE_VERSION}
     volumes:
       - ./kiwi/mx-data:/data
       - ./kiwi/mx-conf:/mx-conf/
@@ -44,7 +44,7 @@ services:
       - "traefik.http.routers.synapse-kiwi.tls.certresolver=letsencrypt"
 
   synapse-litchi:
-    image: matrixdotorg/synapse:v1.96.1
+    image: matrixdotorg/synapse:${SYNAPSE_VERSION}
     volumes:
       - ./litchi/mx-data:/data
       - ./litchi/mx-conf:/mx-conf/

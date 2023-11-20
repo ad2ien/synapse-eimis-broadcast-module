@@ -10,10 +10,11 @@ for SUB_DOMAIN in "${SUB_DOMAINS[@]}"; do
         -e SYNAPSE_SERVER_NAME=$SUB_DOMAIN.${DOMAIN} \
         -e SYNAPSE_CONFIG_PATH=/mx-conf/homeserver.yaml \
         -e SYNAPSE_REPORT_STATS=no \
-        matrixdotorg/synapse:v1.83.0 generate
+        matrixdotorg/synapse:${SYNAPSE_VERSION} generate
 
-    sed -i -e 's/{{ DOMAIN }}/$DOMAIN/g' ./$SUB_DOMAIN/element-config.json
+    sed -i -e "s/{{ DOMAIN }}/${DOMAIN}/g" ./$SUB_DOMAIN/element-config.json
     
+    sudo chmod a+wr ./$SUB_DOMAIN/mx-conf/homeserver.yaml
     echo "
 serve_server_wellknown: true
 modules:
