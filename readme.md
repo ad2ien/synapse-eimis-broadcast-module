@@ -30,7 +30,7 @@ These requirements could be met with a Synapse module :
   ```.env
   TRAEFIK_NETWORK=
   DOMAIN=
-  USER=("admin_matrix" "alice" "bob")
+  USERS=("admin_matrix" "alice" "bob")
   SYNAPSE_VERSION=v1.96.1
   ```
 
