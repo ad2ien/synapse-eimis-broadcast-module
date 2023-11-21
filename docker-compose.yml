@@ -32,7 +32,7 @@ services:
       - ./kiwi/mx-data:/data
       - ./kiwi/mx-conf:/mx-conf/
       - ./broadcast_module/:/usr/local/lib/python3.11/site-packages/broadcast_module
-      - ./synapse_auto_accept_invite/:/usr/local/lib/python3.11/site-packages/synapse_auto_accept_invite
+      - ./synapse/handlers/receipts.py:/usr/local/lib/python3.11/site-packages/synapse/handlers/receipts.py
     environment:
       - SYNAPSE_CONFIG_PATH=/mx-conf/homeserver.yaml
     labels:
@@ -49,6 +49,7 @@ services:
       - ./litchi/mx-data:/data
       - ./litchi/mx-conf:/mx-conf/
       - ./broadcast_module/:/usr/local/lib/python3.11/site-packages/broadcast_module
+      - ./synapse/handlers/receipts.py:/usr/local/lib/python3.11/site-packages/synapse/handlers/receipts.py
     environment:
       - SYNAPSE_CONFIG_PATH=/mx-conf/homeserver.yaml
     labels:
