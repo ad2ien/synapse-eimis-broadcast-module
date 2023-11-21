@@ -1,5 +1,6 @@
 # Synapse broadcast module
 
+> [!IMPORTANT]  
 > 🚧 This repo hosts a POC and is not meant to be used
 
 ## Use case 📖
