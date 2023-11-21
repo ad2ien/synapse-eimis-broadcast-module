@@ -104,11 +104,11 @@ class ReceiptsHandler:
                 for user_id, user_values in users.items():
                     if get_domain_from_id(user_id) != origin:
                         logger.info(
-                            "Received receipt for user %r from server %s, ignoring",
+                            "Received receipt for user %r from server %s, ignoring NOT FOR EIMIS POC",
                             user_id,
                             origin,
                         )
-                        continue
+                        # continue
 
                     # Check if these receipts apply to a thread.
                     data = user_values.get("data", {})
