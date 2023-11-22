@@ -62,7 +62,7 @@ class EimisBroadcast:
         if (
             event.type == "m.room.member"
             and event.is_state()
-            and event.membership == "invite"
+            and event.membership == "join"
         ):
             run_as_background_process(
                 "invite_aliases",
