@@ -21,6 +21,10 @@ These requirements could be met with a Synapse module :
 
 - The receipts part should not be modified like this, but it's just a POC 🤷🏻
 
+## Directory
+
+For this POC a stubb directory has been created using [grist](https://www.getgrist.com/). For CORS purpose, a [synapse module](./eimis_directory_module/) acts as a proxy.  
+
 ## Run the POC 🚜
 
 ### Prerequisites
