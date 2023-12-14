@@ -17,6 +17,10 @@ These requirements could be met with a Synapse module :
 - when a user is invited to or creates a room, all its MXID are invited
 - when a message is read, it should be marked as read for all the MXID
 
+## Limitations 🚧
+
+- The receipts part should not be modified like this, but it's just a POC 🤷🏻
+
 ## Run the POC 🚜
 
 ### Prerequisites
@@ -31,8 +35,9 @@ These requirements could be met with a Synapse module :
   ```.env
   TRAEFIK_NETWORK=
   DOMAIN=
-  USERS=("admin_matrix" "alice" "bob")
-  SYNAPSE_VERSION=v1.96.1
+  USER=("admin_matrix" "alice" "bob")
+  SUB_DOMAIN_1=kiwi
+  SUB_DOMAIN_2=litchi
   ```
 
 - start the stack

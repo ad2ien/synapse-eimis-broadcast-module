@@ -221,10 +221,10 @@ class ReceiptsHandler:
 
     def get_other_server(self):
         current_domain = self.hs.config.server.server_name
-        if 'kiwi' in current_domain:
-            return current_domain.replace('kiwi','litchi')
-        if 'litchi'in current_domain:
-            return current_domain.replace('litchi', 'kiwi')
+        if '{{SUB_DOMAIN_1}}' in current_domain:
+            return current_domain.replace('{{SUB_DOMAIN_1}}', '{{SUB_DOMAIN_2}}')
+        if '{{SUB_DOMAIN_2}}' in current_domain:
+            return current_domain.replace('{{SUB_DOMAIN_2}}', '{{SUB_DOMAIN_1}}')
         return current_domain
 
     def get_user_other_mxid(self, user_id):

@@ -2,63 +2,67 @@ version: "3.3"
 
 services:
 
-  element-kiwi:
+  element-1:
+    container_name: element-${SUB_DOMAIN_1}
     image: vectorim/element-web:v1.11.31
     volumes:
-      - ./kiwi/element-config.json:/app/config.json
+      - ./${SUB_DOMAIN_1}/element-config.json:/app/config.json
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.element-kiwi.rule=Host(`element.kiwi.${DOMAIN}`)"
-      - "traefik.http.routers.element-kiwi.entrypoints=websecure"
-      - "traefik.http.services.element-kiwi.loadbalancer.server.port=80"
-      - "traefik.http.routers.element-kiwi.tls=true"
-      - "traefik.http.routers.element-kiwi.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.element-${SUB_DOMAIN_1}.rule=Host(`element.${SUB_DOMAIN_1}.${DOMAIN}`)"
+      - "traefik.http.routers.element-${SUB_DOMAIN_1}.entrypoints=websecure"
+      - "traefik.http.services.element-${SUB_DOMAIN_1}.loadbalancer.server.port=80"
+      - "traefik.http.routers.element-${SUB_DOMAIN_1}.tls=true"
+      - "traefik.http.routers.element-${SUB_DOMAIN_1}.tls.certresolver=letsencrypt"
 
-  element-litchi:
+  element-2:
+    container_name: element-${SUB_DOMAIN_2}
     image: vectorim/element-web:v1.11.31
     volumes:
-      - ./litchi/element-config.json:/app/config.json
+      - ./${SUB_DOMAIN_2}/element-config.json:/app/config.json
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.element-litchi.rule=Host(`element.litchi.${DOMAIN}`)"
-      - "traefik.http.routers.element-litchi.entrypoints=websecure"
-      - "traefik.http.services.element-litchi.loadbalancer.server.port=80"
-      - "traefik.http.routers.element-litchi.tls=true"
-      - "traefik.http.routers.element-litchi.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.element-${SUB_DOMAIN_2}.rule=Host(`element.${SUB_DOMAIN_2}.${DOMAIN}`)"
+      - "traefik.http.routers.element-${SUB_DOMAIN_2}.entrypoints=websecure"
+      - "traefik.http.services.element-${SUB_DOMAIN_2}.loadbalancer.server.port=80"
+      - "traefik.http.routers.element-${SUB_DOMAIN_2}.tls=true"
+      - "traefik.http.routers.element-${SUB_DOMAIN_2}.tls.certresolver=letsencrypt"
 
-  synapse-kiwi:
+  synapse-1:
+    container_name: synapse-${SUB_DOMAIN_1}
     image: matrixdotorg/synapse:${SYNAPSE_VERSION}
     volumes:
-      - ./kiwi/mx-data:/data
-      - ./kiwi/mx-conf:/mx-conf/
+      - ./${SUB_DOMAIN_1}/mx-data:/data
+      - ./${SUB_DOMAIN_1}/mx-conf:/mx-conf/
       - ./broadcast_module/:/usr/local/lib/python3.11/site-packages/broadcast_module
       - ./synapse/handlers/receipts.py:/usr/local/lib/python3.11/site-packages/synapse/handlers/receipts.py
     environment:
       - SYNAPSE_CONFIG_PATH=/mx-conf/homeserver.yaml
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.synapse-kiwi.rule=Host(`kiwi.${DOMAIN}`)"
-      - "traefik.http.routers.synapse-kiwi.entrypoints=websecure"
-      - "traefik.http.services.synapse-kiwi.loadbalancer.server.port=8008"
-      - "traefik.http.routers.synapse-kiwi.tls=true"
-      - "traefik.http.routers.synapse-kiwi.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.synapse-${SUB_DOMAIN_1}.rule=Host(`${SUB_DOMAIN_1}.${DOMAIN}`)"
+      - "traefik.http.routers.synapse-${SUB_DOMAIN_1}.entrypoints=websecure"
+      - "traefik.http.services.synapse-${SUB_DOMAIN_1}.loadbalancer.server.port=8008"
+      - "traefik.http.routers.synapse-${SUB_DOMAIN_1}.tls=true"
+      - "traefik.http.routers.synapse-${SUB_DOMAIN_1}.tls.certresolver=letsencrypt"
 
-  synapse-litchi:
+  synapse-2:
+    container_name: synapse-${SUB_DOMAIN_2}
     image: matrixdotorg/synapse:${SYNAPSE_VERSION}
     volumes:
-      - ./litchi/mx-data:/data
-      - ./litchi/mx-conf:/mx-conf/
+      - ./${SUB_DOMAIN_2}/mx-data:/data
+      - ./${SUB_DOMAIN_2}/mx-conf:/mx-conf/
       - ./broadcast_module/:/usr/local/lib/python3.11/site-packages/broadcast_module
       - ./synapse/handlers/receipts.py:/usr/local/lib/python3.11/site-packages/synapse/handlers/receipts.py
     environment:
       - SYNAPSE_CONFIG_PATH=/mx-conf/homeserver.yaml
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.synapse-litchi.rule=Host(`litchi.${DOMAIN}`)"
-      - "traefik.http.routers.synapse-litchi.entrypoints=websecure"
-      - "traefik.http.services.synapse-litchi.loadbalancer.server.port=8008"
-      - "traefik.http.routers.synapse-litchi.tls=true"
-      - "traefik.http.routers.synapse-litchi.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.synapse-${SUB_DOMAIN_2}.rule=Host(`${SUB_DOMAIN_2}.${DOMAIN}`)"
+      - "traefik.http.routers.synapse-${SUB_DOMAIN_2}.entrypoints=websecure"
+      - "traefik.http.services.synapse-${SUB_DOMAIN_2}.loadbalancer.server.port=8008"
+      - "traefik.http.routers.synapse-${SUB_DOMAIN_2}.tls=true"
+      - "traefik.http.routers.synapse-${SUB_DOMAIN_2}.tls.certresolver=letsencrypt"
 
 networks:
   default:

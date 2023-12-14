@@ -1,4 +1,7 @@
-SUB_DOMAINS=("litchi" "kiwi")
+#!/bin/bash
+source .env
+
+SUB_DOMAINS=($SUB_DOMAIN_1 $SUB_DOMAIN_2)
 
 docker-compose down
 

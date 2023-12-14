@@ -1,8 +1,8 @@
 {
     "default_server_config": {
         "m.homeserver": {
-            "base_url": "https://kiwi.{{ DOMAIN }}",
-            "server_name": "kiwi.{{ DOMAIN }}"
+            "base_url": "https://{{ SUB_DOMAIN }}.{{ DOMAIN }}",
+            "server_name": "{{ SUB_DOMAIN }}.{{ DOMAIN }}"
         },
         "m.identity_server": {
             "base_url": "https://vector.im"
