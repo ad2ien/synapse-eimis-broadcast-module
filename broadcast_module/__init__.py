@@ -14,6 +14,7 @@ class EimisBroadcastConfig:
     url1: Optional[str] = None
     url2: Optional[str] = None
 
+
 class EimisBroadcast:
     def __init__(self, config: EimisBroadcastConfig, api: ModuleApi):
         self._api = api
@@ -24,7 +25,7 @@ class EimisBroadcast:
         )
 
         self._api.register_third_party_rules_callbacks(
-            check_event_allowed=self.check_event_allowed
+            check_event_allowed=self.check_event_allowed,
             # on_new_event=self.on_new_event,
         )
 
@@ -62,14 +63,12 @@ class EimisBroadcast:
         if (
             event.type == "m.room.member"
             and event.is_state()
-            and event.membership == "join"
+            and (event.membership == "join" or event.membership == "invite")
         ):
             run_as_background_process(
                 "invite_aliases",
                 self._invite_aliases,
-                event.sender,
-                event.state_key,
-                event.room_id,
+                event,
                 bg_start_span=False,
             )
         return True, None
@@ -93,7 +92,7 @@ class EimisBroadcast:
         return NOT_SPAM
 
     async def _invite_aliases(
-        self, sender: str, target: str, room_id: str
+        self, event
     ) -> None:
         """
 
@@ -103,27 +102,32 @@ class EimisBroadcast:
             room_id: room id of the room to join to
         """
 
+        target = event.state_key
         logger.info(
-            f"Accepting {target}, inviting {target} aliases on room {room_id}")
+            f"EIMIS processing {event.membership} {target}, inviting aliases on room {event.room_id}")
 
-        logger.info(f"sender {sender} local? {self._api.is_mine(sender)}")
-
+        logger.debug(
+            f"EIMIS sender {event.sender} local? {self._api.is_mine(event.sender)}")
         other_mxid_target = self._get_user_other_mx(target)
-        # todo only if not already in the room
-        if other_mxid_target:
-            logger.info(
-                f"Inviting {other_mxid_target} sender {sender} aliases on room {room_id}...")
-            try:
-                await self._api.update_room_membership(
-                    sender=sender,
-                    target=other_mxid_target,
-                    room_id=room_id,
-                    new_membership="invite",
-                )
-            except Exception as e:
+        member_events = await self._api.get_room_state(event.room_id,  [("m.room.member", other_mxid_target)])
+
+        if len(member_events) == 0:
+            if other_mxid_target:
                 logger.info(
-                    f"invite {other_mxid_target} error: {e}"
-                )
+                    f"Inviting {other_mxid_target} sender {event.sender} aliases on room {event.room_id}...")
+                try:
+                    await self._api.update_room_membership(
+                        sender=event.sender,
+                        target=other_mxid_target,
+                        room_id=event.room_id,
+                        new_membership="invite",
+                    )
+                except Exception as e:
+                    logger.info(
+                        f"join {other_mxid_target} error: {e}"
+                    )
+        else:
+            logger.debug(f"already in room : {str(member_events)}")
 
     async def _send_alias_read_receipt(self, event_id: str, room_id: str, sender: str):
         ts = int(time.time())
@@ -163,7 +167,8 @@ class EimisBroadcast:
             event: The incoming event.
         """
         logger.info(f"on_new_event {event} ")
-        
+
+    # TODO call user directory
     def _get_user_other_mx(self, user_id: str) -> str:
         """Stubb for POC : returns the user's others MXID
         Args:
