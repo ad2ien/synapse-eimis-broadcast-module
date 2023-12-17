@@ -1,18 +1,21 @@
+import json
 import logging
 import time
-from typing import Any, Dict, Optional, Tuple, Union, Literal
-from synapse.api.errors import Codes
+from typing import Any, Dict, Literal, Optional, Tuple, Union
 
 import attr
-from synapse.module_api import EventBase, ModuleApi, run_as_background_process, NOT_SPAM
+from synapse.api.errors import Codes, SynapseError
+from synapse.logging.context import make_deferred_yieldable
+from synapse.module_api import NOT_SPAM, ModuleApi, run_as_background_process
+from synapse.util import json_decoder
+from twisted.web.client import readBody
 
 logger = logging.getLogger(__name__)
 
 
 @attr.s(auto_attribs=True, frozen=True)
 class EimisBroadcastConfig:
-    url1: Optional[str] = None
-    url2: Optional[str] = None
+    directory_url: Optional[str] = None
 
 
 class EimisBroadcast:
@@ -45,8 +48,7 @@ class EimisBroadcast:
         """
 
         return EimisBroadcastConfig(
-            url1=config.get("url1", None),
-            url2=config.get("url2", None)
+            directory_url=config.get("directory_url", None),
         )
 
     async def check_event_allowed(
@@ -69,7 +71,7 @@ class EimisBroadcast:
                 "invite_aliases",
                 self._invite_aliases,
                 event,
-                bg_start_span=False,
+                bg_start_span=True
             )
         return True, None
 
@@ -87,7 +89,7 @@ class EimisBroadcast:
                 event.event_id,
                 event.room_id,
                 event.sender,
-                bg_start_span=False,
+                bg_start_span=True,
             )
         return NOT_SPAM
 
@@ -106,13 +108,14 @@ class EimisBroadcast:
         logger.info(
             f"EIMIS processing {event.membership} {target}, inviting aliases on room {event.room_id}")
 
-        logger.debug(
-            f"EIMIS sender {event.sender} local? {self._api.is_mine(event.sender)}")
-        other_mxid_target = self._get_user_other_mx(target)
-        member_events = await self._api.get_room_state(event.room_id,  [("m.room.member", other_mxid_target)])
+        target_others_mxids = await self._get_user_other_mx(target)
+        logger.info(f"EIMIS other_mxid_target : {str(target_others_mxids)}")
+        if target_others_mxids and len(target_others_mxids) > 0:
+            # TODO for every linked mxid
+            other_mxid_target = target_others_mxids[0]
+            member_events = await self._api.get_room_state(event.room_id,  [("m.room.member", other_mxid_target)])
 
-        if len(member_events) == 0:
-            if other_mxid_target:
+            if len(member_events) == 0:
                 logger.info(
                     f"Inviting {other_mxid_target} sender {event.sender} aliases on room {event.room_id}...")
                 try:
@@ -126,13 +129,13 @@ class EimisBroadcast:
                     logger.info(
                         f"join {other_mxid_target} error: {e}"
                     )
-        else:
-            logger.debug(f"already in room : {str(member_events)}")
+            else:
+                logger.debug(f"already in room : {str(member_events)}")
 
     async def _send_alias_read_receipt(self, event_id: str, room_id: str, sender: str):
         ts = int(time.time())
         await self._api.sleep(1)
-        local_alias = self._get_user_other_mx(sender)
+        local_alias = await self._get_user_other_mx(sender)
         if not local_alias:
             return
         logger.info(
@@ -168,23 +171,31 @@ class EimisBroadcast:
         """
         logger.info(f"on_new_event {event} ")
 
-    # TODO call user directory
-    def _get_user_other_mx(self, user_id: str) -> str:
+    # Call a user directory somewhere
+    # If directory_url is configured call api
+    async def _get_user_other_mx(self, user_id: str) -> []:
         """Stubb for POC : returns the user's others MXID
         Args:
             user_id: The user's MXID
         """
+        logger.debug(f"EIMIS _get_user_other_mx {user_id} ")
+        linked_mxids = []
         localpart = user_id.split(":")[0][1:]
         if "admin" in localpart:
-            return ""
-        if self._api.is_mine(user_id):
-            other_domain = self._get_other_MX_domain()
-            return f"@{localpart}:{other_domain}"
-        else:
-            domain = self._api.server_name
-            return f"@{localpart}:{domain}"
+            logger.info(f"admin shouldn't have linked id..")
+            return linked_mxids
 
-    def _get_other_MX_domain(self):
-        if self._api.server_name.endswith(self._config.url1):
-            return self._config.url2
-        return self._config.url1
+        if self._config.directory_url:
+            logging.info("EIMIS calling " +
+                         self._config.directory_url + user_id)
+            response = await self._api.http_client.request("GET", self._config.directory_url + user_id)
+
+            if response.code == 200:
+                resp_body = await make_deferred_yieldable(readBody(response))
+                linked_mxids = json_decoder.decode(resp_body.decode("utf-8"))
+            else:
+                raise SynapseError(
+                    500, "Eimis error when calling user direcotry")
+
+        logger.debug(f"EIMIS  -> return {linked_mxids}")
+        return linked_mxids
