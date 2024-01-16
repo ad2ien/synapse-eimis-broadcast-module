@@ -1,0 +1,123 @@
+Subject: [PATCH] add EIMIS linked MXID in user info use EIMIS linked MXID to filter read receipts
+---
+Index: src/components/views/messages/DisambiguatedProfile.tsx
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/components/views/messages/DisambiguatedProfile.tsx b/src/components/views/messages/DisambiguatedProfile.tsx
+--- a/src/components/views/messages/DisambiguatedProfile.tsx	(revision a3cf11ac74b2e3e5fba711f1e4f41379964fb508)
++++ b/src/components/views/messages/DisambiguatedProfile.tsx	(revision 44e23c0dbba1ee1b879b3e0a143578e3b6bc7f1c)
+@@ -52,7 +52,10 @@
+                     withDisplayName: true,
+                     roomId: member.roomId,
+                 }) ?? mxid;
+-            if (member?.disambiguate) {
++            if (member?.linkedMxids.length > 0) {
++                mxidElement = <span className="mx_DisambiguatedProfile_mxid">{ mxid + " " + member?.linkedMxids.join(" ") }</span>;
++            }
++            else if (member?.disambiguate) {
+                 mxidElement = <span className="mx_DisambiguatedProfile_mxid">{identifier}</span>;
+             }
+             title = _t("timeline|disambiguated_profile", {
+Index: src/components/views/right_panel/UserInfo.tsx
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/components/views/right_panel/UserInfo.tsx b/src/components/views/right_panel/UserInfo.tsx
+--- a/src/components/views/right_panel/UserInfo.tsx	(revision a3cf11ac74b2e3e5fba711f1e4f41379964fb508)
++++ b/src/components/views/right_panel/UserInfo.tsx	(revision 44e23c0dbba1ee1b879b3e0a143578e3b6bc7f1c)
+@@ -1551,8 +1551,20 @@
+         </div>
+     );
+ 
++    const eimisDetails =
++        (member as RoomMember).linkedMxids?.length > 0 ? (
++            <div className="mx_UserInfo_container">
++                <h3>{_t("user_info|eimis_linked_id_title")}</h3>
++                <p>{(member as RoomMember).linkedMxids?.join(" ")}</p>
++            </div>
++        ) : (
++            <></>
++        );
++
+     return (
+         <React.Fragment>
++            {eimisDetails}
++
+             {memberDetails}
+ 
+             {securitySection}
+Index: src/components/views/rooms/ReadReceiptGroup.tsx
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/components/views/rooms/ReadReceiptGroup.tsx b/src/components/views/rooms/ReadReceiptGroup.tsx
+--- a/src/components/views/rooms/ReadReceiptGroup.tsx	(revision a3cf11ac74b2e3e5fba711f1e4f41379964fb508)
++++ b/src/components/views/rooms/ReadReceiptGroup.tsx	(revision 44e23c0dbba1ee1b879b3e0a143578e3b6bc7f1c)
+@@ -84,6 +84,9 @@
+     const hasMore = readReceipts.length > MAX_READ_AVATARS;
+     const maxAvatars = hasMore ? MAX_READ_AVATARS_PLUS_N : MAX_READ_AVATARS;
+ 
++    // EIMIS remove linkedMxid read receipts
++    readReceipts = readReceipts.filter(rr => rr.roomMember !== null);
++
+     const tooltipMembers: string[] = readReceipts.map((it) => it.roomMember?.name ?? it.userId);
+     const tooltipText = readReceiptTooltip(tooltipMembers, maxAvatars);
+ 
+Index: src/i18n/strings/en_EN.json
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/i18n/strings/en_EN.json b/src/i18n/strings/en_EN.json
+--- a/src/i18n/strings/en_EN.json	(revision a3cf11ac74b2e3e5fba711f1e4f41379964fb508)
++++ b/src/i18n/strings/en_EN.json	(revision 44e23c0dbba1ee1b879b3e0a143578e3b6bc7f1c)
+@@ -3748,7 +3748,8 @@
+         "unban_space_specific": "Unban them from specific things I'm able to",
+         "unban_space_warning": "They won't be able to access whatever you're not an admin of.",
+         "verify_button": "Verify User",
+-        "verify_explainer": "For extra security, verify this user by checking a one-time code on both of your devices."
++        "verify_explainer": "For extra security, verify this user by checking a one-time code on both of your devices.",
++        "eimis_linked_id_title": "EIMIS Linked ID"
+     },
+     "user_menu": {
+         "settings": "All settings",
+Index: src/i18n/strings/fr.json
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/i18n/strings/fr.json b/src/i18n/strings/fr.json
+--- a/src/i18n/strings/fr.json	(revision a3cf11ac74b2e3e5fba711f1e4f41379964fb508)
++++ b/src/i18n/strings/fr.json	(revision 44e23c0dbba1ee1b879b3e0a143578e3b6bc7f1c)
+@@ -3654,7 +3654,8 @@
+         "unban_space_specific": "Annuler le bannissement de certains endroits où j’ai le droit de le faire",
+         "unban_space_warning": "Ils ne pourront plus accéder aux endroits dans lesquels vous n’êtes pas administrateur.",
+         "verify_button": "Vérifier l’utilisateur",
+-        "verify_explainer": "Pour une sécurité supplémentaire, vérifiez cet utilisateur en comparant un code à usage unique sur vos deux appareils."
++        "verify_explainer": "Pour une sécurité supplémentaire, vérifiez cet utilisateur en comparant un code à usage unique sur vos deux appareils.",
++        "eimis_linked_id_title": "ID EIMIS liées"
+     },
+     "user_menu": {
+         "settings": "Tous les paramètres",
+Index: src/stores/MemberListStore.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/stores/MemberListStore.ts b/src/stores/MemberListStore.ts
+--- a/src/stores/MemberListStore.ts	(revision a3cf11ac74b2e3e5fba711f1e4f41379964fb508)
++++ b/src/stores/MemberListStore.ts	(revision 44e23c0dbba1ee1b879b3e0a143578e3b6bc7f1c)
+@@ -55,7 +55,8 @@
+         }
+         const language = SettingsStore.getValue("language");
+         this.collator = new Intl.Collator(language, { sensitivity: "base", ignorePunctuation: false });
+-        const members = await this.loadMembers(roomId);
++        let members = await this.loadMembers(roomId);
++
+         // Filter then sort as it's more efficient than sorting tons of members we will just filter out later.
+         // Also sort each group, as there's no point comparing invited/joined users when they aren't in the same list!
+         const membersByMembership = this.filterMembers(members, searchQuery);

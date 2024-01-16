@@ -1,0 +1,365 @@
+Subject: [PATCH] - eimis server call at startup to populate profiles - manage EIMIS DM room names - take EIMIS linked ID into account to count people in a room - add EIMIS linked MXID to room member
+---
+Index: src/client.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/client.ts b/src/client.ts
+--- a/src/client.ts	(revision 0c7342cb20c51d049997597b5b96de1744bd7b66)
++++ b/src/client.ts	(revision 9b8848744d178add93a5462abed836ee6cdd72fb)
+@@ -221,6 +221,7 @@
+ } from "./secret-storage";
+ import { RegisterRequest, RegisterResponse } from "./@types/registration";
+ import { MatrixRTCSessionManager } from "./matrixrtc/MatrixRTCSessionManager";
++import { EimisMemberMerger } from "./eimis/eimis-member-merger";
+ 
+ export type Store = IStore;
+ 
+@@ -1259,7 +1260,8 @@
+     public readonly isVoipWithNoMediaAllowed;
+ 
+     public useLivekitForGroupCalls: boolean;
+-
++    
++    public eimisMemberMerger: EimisMemberMerger;
+     // Note: these are all `protected` to let downstream consumers make mistakes if they want to.
+     // We don't technically support this usage, but have reasons to do this.
+ 
+@@ -1497,6 +1499,9 @@
+ 
+         // having lots of event listeners is not unusual. 0 means "unlimited".
+         this.setMaxListeners(0);
++
++        // Init Eimis module
++        this.eimisMemberMerger = new EimisMemberMerger(this.http);
+     }
+ 
+     public set store(newStore: Store) {
+Index: src/eimis/eimis-member-merger.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/eimis/eimis-member-merger.ts b/src/eimis/eimis-member-merger.ts
+new file mode 100644
+--- /dev/null	(revision 9b8848744d178add93a5462abed836ee6cdd72fb)
++++ b/src/eimis/eimis-member-merger.ts	(revision 9b8848744d178add93a5462abed836ee6cdd72fb)
+@@ -0,0 +1,105 @@
++import { logger } from "../logger";
++import { IHttpOpts, MatrixHttpApi, Method } from "../matrix";
++import { EimisProfile } from "./eimis-profile";
++
++type LocalHttpOpts = IHttpOpts & { onlyData: true };
++type LocalMatrixHttpApi = MatrixHttpApi<LocalHttpOpts>;
++export class EimisMemberMerger {
++    public static eimisMemberMerger: EimisMemberMerger | undefined;
++
++    private readonly client: LocalMatrixHttpApi;
++    // TODO Use the configured url
++    private readonly url = "https://kiwi.ad2ien.dev";
++    private readonly pathAndRequest = "/_synapse/client/eimis-directory/dump";
++    private readonly eimisDictionary: Map<string, string[]> = new Map<string, string[]>();
++    private readonly eimisDirectory: EimisProfile[] = [];
++
++    public callInprogress = false;
++    private async getDataFromServer(): Promise<void> {
++        try {
++            this.callInprogress = true;
++            const res = await this.client.requestOtherUrl(Method.Get, `${this.url}${this.pathAndRequest}`);
++            if (Array.isArray(res)) {
++                res.forEach((profile) => {
++                    this.eimisDirectory.push(
++                        new EimisProfile(profile.nom, profile.prenom, profile.pscNumber, profile.mxids),
++                    );
++                });
++                this.directoryToDictionary();
++            } else {
++                logger.error(`EIMIS directory weird result for`, res);
++            }
++        } catch (e) {
++            logger.error(`EIMIS directory call fail`, e);
++        } finally {
++            this.callInprogress = false;
++        }
++    }
++
++    private directoryToDictionary(): void {
++        this.eimisDirectory.forEach((profile) => {
++            profile.mxids.forEach((mxid) => {
++                this.eimisDictionary.set(
++                    mxid,
++                    profile.mxids.filter((m) => m !== mxid),
++                );
++            });
++        });
++    }
++
++    public constructor(client: LocalMatrixHttpApi) {
++        logger.debug("EIMIS EimisMemberMerger constructor");
++        this.client = client;
++        // this is async
++        this.getDataFromServer();
++        EimisMemberMerger.eimisMemberMerger = this;
++    }
++
++    public getLinkedMxids(mxid: string): string[] {
++        if (!this.eimisDictionary.has(mxid)) {
++            if (this.callInprogress) {
++                logger.warn("EIMIS ohoh what should I do???? ");
++                return [];
++            }
++        }
++        return this.eimisDictionary.get(mxid) ?? [];
++    }
++
++    /**
++     *
++     * @param mxid - Matrix ID
++     * @param members - Members of the room
++     * @returns false if mxid already in members through an other EIMIS mxid
++     */
++    public shouldAddMember(mxid: string, mxids: string[]): boolean {
++        const linkedMxids = this.getLinkedMxids(mxid);
++        return linkedMxids.length === 0 || mxids.find((m) => linkedMxids.includes(m)) === undefined;
++    }
++}
++
++/**
++ *
++ * @param mxid - Matrix ID
++ * @param members - Members of the room
++ * @returns false if mxid already in members through an other EIMIS mxid
++ */
++export function shouldAddMember(mxid: string, mxids: string[]): boolean {
++    logger.debug("EIMIS shouldAddMember", mxid, mxids);
++    if (EimisMemberMerger.eimisMemberMerger === undefined) {
++        logger.error("EIMIS shouldAddMember error, merger not initialized");
++        return true;
++    } else if (mxids === undefined || mxids.length === 0) {
++        return true;
++    } else {
++        return EimisMemberMerger.eimisMemberMerger.shouldAddMember(mxid, mxids);
++    }
++}
++
++export function getLinkedMxids(mxid: string): string[] {
++    if (EimisMemberMerger.eimisMemberMerger === undefined) {
++        logger.error("EIMIS getLinkedMxids error, merger not initialized");
++        return [];
++    } else {
++        return EimisMemberMerger.eimisMemberMerger.getLinkedMxids(mxid);
++    }
++}
+Index: src/eimis/eimis-profile.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/eimis/eimis-profile.ts b/src/eimis/eimis-profile.ts
+new file mode 100644
+--- /dev/null	(revision 9b8848744d178add93a5462abed836ee6cdd72fb)
++++ b/src/eimis/eimis-profile.ts	(revision 9b8848744d178add93a5462abed836ee6cdd72fb)
+@@ -0,0 +1,11 @@
++/*
++*
++*/
++export class EimisProfile {
++    public constructor(
++        public lastName: string,
++        public firstName: string,
++        public pscNumber: string,
++        public mxids: string[],
++    ) {}
++}
+\ No newline at end of file
+Index: src/models/room-member.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/models/room-member.ts b/src/models/room-member.ts
+--- a/src/models/room-member.ts	(revision 0c7342cb20c51d049997597b5b96de1744bd7b66)
++++ b/src/models/room-member.ts	(revision 9b8848744d178add93a5462abed836ee6cdd72fb)
+@@ -22,6 +22,7 @@
+ import { logger } from "../logger";
+ import { TypedEventEmitter } from "./typed-event-emitter";
+ import { EventType } from "../@types/event";
++import { getLinkedMxids } from "../eimis/eimis-member-merger";
+ 
+ export enum RoomMemberEvent {
+     Membership = "RoomMember.membership",
+@@ -125,6 +126,10 @@
+      */
+     public disambiguate = false;
+     /**
++     * Other linked mxid
++     */
++    public linkedMxids: string[] = [];
++    /**
+      * The events describing this RoomMember.
+      */
+     public events: {
+@@ -146,6 +151,7 @@
+         this.name = userId;
+         this.rawDisplayName = userId;
+         this.updateModifiedTime();
++        this.linkedMxids = getLinkedMxids(userId);
+     }
+ 
+     /**
+Index: src/models/room-state.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/models/room-state.ts b/src/models/room-state.ts
+--- a/src/models/room-state.ts	(revision 0c7342cb20c51d049997597b5b96de1744bd7b66)
++++ b/src/models/room-state.ts	(revision 9b8848744d178add93a5462abed836ee6cdd72fb)
+@@ -25,6 +25,7 @@
+ import { Beacon, BeaconEvent, BeaconEventHandlerMap, getBeaconInfoIdentifier, BeaconIdentifier } from "./beacon";
+ import { TypedReEmitter } from "../ReEmitter";
+ import { M_BEACON, M_BEACON_INFO } from "../@types/beacon";
++import { shouldAddMember } from "../eimis/eimis-member-merger";
+ 
+ export interface IMarkerFoundOptions {
+     /** Whether the timeline was empty before the marker event arrived in the
+@@ -206,6 +207,7 @@
+                 return m.membership === "join" ? count + 1 : count;
+             }, 0);
+         }
++
+         return this.joinedMemberCount;
+     }
+ 
+@@ -214,7 +216,12 @@
+      * @param count - the amount of joined members
+      */
+     public setJoinedMemberCount(count: number): void {
+-        this.summaryJoinedMemberCount = count;
++        if (this.getMembers().find((m) => m.linkedMxids?.length > 0)) {
++            //EIMIS knows best
++            this.summaryJoinedMemberCount = this.getMembers().filter((m) => m.membership === "join").length;
++        } else {
++            this.summaryJoinedMemberCount = count;
++        }
+     }
+ 
+     /**
+@@ -436,9 +443,11 @@
+                 }
+ 
+                 const member = this.getOrCreateMember(userId, event);
+-                member.setMembershipEvent(event, this);
+-                this.updateMember(member);
+-                this.emit(RoomStateEvent.Members, event, this, member);
++                if (member) {
++                    member.setMembershipEvent(event, this);
++                    this.updateMember(member);
++                    this.emit(RoomStateEvent.Members, event, this, member);
++                }
+             } else if (event.getType() === EventType.RoomPowerLevels) {
+                 // events with unknown state keys should be ignored
+                 // and should not aggregate onto members power levels
+@@ -525,7 +534,19 @@
+      * @remarks
+      * Fires {@link RoomStateEvent.NewMember}
+      */
+-    private getOrCreateMember(userId: string, event: MatrixEvent): RoomMember {
++    private getOrCreateMember(userId: string, event: MatrixEvent): RoomMember | undefined {
++        // So if userId is a linked mxid with a user that is already in the list
++        // then ignore it
++        if (
++            !shouldAddMember(
++                userId,
++                Object.values(this.members).map((m) => m.userId),
++            )
++        ) {
++            logger.info(`EIMIS ignore ${userId}`);
++            return undefined;
++        }
++
+         let member = this.members[userId];
+         if (!member) {
+             member = new RoomMember(this.roomId, userId);
+@@ -704,17 +725,19 @@
+         }
+ 
+         const member = this.getOrCreateMember(userId, stateEvent);
+-        member.setMembershipEvent(stateEvent, this);
+-        // needed to know which members need to be stored seperately
+-        // as they are not part of the sync accumulator
+-        // this is cleared by setMembershipEvent so when it's updated through /sync
+-        member.markOutOfBand();
++        if (member) {
++            member.setMembershipEvent(stateEvent, this);
++            // needed to know which members need to be stored seperately
++            // as they are not part of the sync accumulator
++            // this is cleared by setMembershipEvent so when it's updated through /sync
++            member.markOutOfBand();
+ 
+-        this.updateDisplayNameCache(member.userId, member.name);
++            this.updateDisplayNameCache(member.userId, member.name);
+ 
+-        this.setStateEvent(stateEvent);
+-        this.updateMember(member);
+-        this.emit(RoomStateEvent.Members, stateEvent, this, member);
++            this.setStateEvent(stateEvent);
++            this.updateMember(member);
++            this.emit(RoomStateEvent.Members, stateEvent, this, member);
++        }
+     }
+ 
+     /**
+Index: src/models/room.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/models/room.ts b/src/models/room.ts
+--- a/src/models/room.ts	(revision 0c7342cb20c51d049997597b5b96de1744bd7b66)
++++ b/src/models/room.ts	(revision 9b8848744d178add93a5462abed836ee6cdd72fb)
+@@ -66,6 +66,7 @@
+ import { RelationsContainer } from "./relations-container";
+ import { ReadReceipt, synthesizeReceipt } from "./read-receipt";
+ import { isPollEvent, Poll, PollEvent } from "./poll";
++import { shouldAddMember } from "../eimis/eimis-member-merger";
+ 
+ // These constants are used as sane defaults when the homeserver doesn't support
+ // the m.room_versions capability. In practice, KNOWN_SAFE_ROOM_VERSION should be
+@@ -3335,6 +3336,7 @@
+ 
+         // get members that are NOT ourselves and are actually in the room.
+         let otherNames: string[] = [];
++        const humansInTheRoom: string[] = [userId];
+         if (this.summaryHeroes) {
+             // if we have a summary, the member state events should be in the room state
+             this.summaryHeroes.forEach((userId) => {
+@@ -3343,8 +3345,12 @@
+                     inviteJoinCount--;
+                     return;
+                 }
+-                const member = this.getMember(userId);
+-                otherNames.push(member ? member.name : userId);
++                //EIMIS don't add if linked mxids
++                if (this.client.eimisMemberMerger.shouldAddMember(userId, humansInTheRoom)) {
++                    const member = this.getMember(userId);
++                    humansInTheRoom.push(userId);
++                    otherNames.push(member ? member.name : userId);
++                }
+             });
+         } else {
+             let otherMembers = this.currentState.getMembers().filter((m) => {
+@@ -3356,7 +3362,11 @@
+                     inviteJoinCount--;
+                     return false;
+                 }
+-                return true;
++                //EIMIS don't add if linked mxids
++                return this.client.eimisMemberMerger.shouldAddMember(
++                    userId,
++                    otherMembers.map((m) => m.userId),
++                );
+             });
+             // make sure members have stable order
+             otherMembers.sort((a, b) => compare(a.userId, b.userId));
