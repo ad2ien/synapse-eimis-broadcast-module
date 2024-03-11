@@ -10,7 +10,26 @@
 - the user wants all the conversations of all his/her MXIDs to be synchronized
 - if a message is read (or sent) with a MXID it should be marked read for every MXID
 
-## Idea 💡
+## Ideas 💡
+
+## The Tchap way
+
+- A users creates an account on any of the federation servers
+- At login, Element (or other clients), calls a service to select the right server to connect to, depending on a 3PId [the code here](https://github.com/tchapgouv/tchap-web-v4/blob/22af08b728ebf4ba45b6baada551d3833e7facee/patches/login/matrix-react-sdk%2B3.92.0.patch#L50)
+- In the interface the displayed name is preferred over the MXID
+
+### Pros 👍
+
+- Already implemented with Tchap
+- Unique account with federated architecture
+
+### Cons 👎
+
+- If a server closes, accounts have to be migrated, users probably lose their messages
+- Not obvious to implement for non-Element clients
+- More complicated than [centralized architecture](https://github.com/eimis-ans/eimis-synapse/wiki/Architectures-et-impl%C3%A9mentation-par-les-%C3%A9diteurs#sc%C3%A9nario-architecture-centralis%C3%A9e-mxid-unique) with the constraints of the federated one
+
+## With some new EIMIS modules
 
 These requirements could be met with a Synapse module :
 
